@@ -11,8 +11,6 @@ from type import (
     StrengthType,
     StrengthMode,
     MessageType,
-    MAX_STRENGTH,
-    MIN_STRENGTH,
     ChannelStrength
 )
 
@@ -33,6 +31,12 @@ class dglabv3:
         self.maxInterval = 50
         self.strength = ChannelStrength()
         self._bind_event = Event()
+
+    def is_connected(self) -> bool:
+        return self.client and self.client.sock and self.client.sock.connected
+
+    def is_linked_to_app(self) -> bool:
+        return self.client_id is not None
 
     async def connect_and_wait(self) -> None:
         """連接並等待bind完成"""
@@ -103,8 +107,6 @@ class dglabv3:
                     {"type": "heartbeat", "clientId": self.client_id, "message": "200"},
                     update=False,
                 )
-                self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength.A)
-                self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength.B)
             else:
                 logger.error("WebSocket not connected")
 
@@ -161,7 +163,7 @@ class dglabv3:
         elif channel == 3:
             channel = "BOTH"
 
-        def _create_wave_message(channel: Channel, wave, time: int) -> dict:
+        def _create_wave_message(channel: str, wave, time: int) -> dict:
             return {
                 "type": MessageType.CLIENT_MSG,
                 "channel": channel,

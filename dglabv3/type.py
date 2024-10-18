@@ -10,6 +10,10 @@ class Channel(IntEnum):
     BOTH = 3
 
 
+MAX_STRENGTH: Final[int] = 200
+MIN_STRENGTH: Final[int] = 0
+
+
 @dataclass
 class ChannelStrength:
     _A: int = field(default=0, init=False)
@@ -25,8 +29,10 @@ class ChannelStrength:
 
     @A.setter
     def A(self, value):
-        if value > 200:
+        if value > MAX_STRENGTH:
             raise ValueError("stronger A cannot be greater than 200")
+        if value < MIN_STRENGTH:
+            raise ValueError("stronger A cannot be less than 0")
         self._A = value
 
     @property
@@ -35,8 +41,10 @@ class ChannelStrength:
 
     @B.setter
     def B(self, value):
-        if value > 200:
+        if value > MAX_STRENGTH:
             raise ValueError("stronger B cannot be greater than 200")
+        if value < MIN_STRENGTH:
+            raise ValueError("stronger B cannot be less than 0")
         self._B = value
 
 
@@ -53,10 +61,6 @@ class StrengthMode(IntEnum):
     DECREASE = 0  # 通道強度減少
     INCREASE = 1  # 通道強度增加
     SPECIFIC = 2  # 通道強度變化為指定數值
-
-
-MAX_STRENGTH: Final[int] = 200
-MIN_STRENGTH: Final[int] = 0
 
 
 class MessageType(str, Enum):
