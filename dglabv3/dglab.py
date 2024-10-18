@@ -92,8 +92,8 @@ class dglabv3:
     def update_connects(self, message: dict):
         if message["targetId"]:
             self.connects[message["clientId"]] = message["targetId"]
-            self.set_strength(1, 4, self.strength)
-            self.set_strength(2, 4, self.strength)
+            self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength)
+            self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength)
 
     def start_heartbeat(self):
         def heartbeat():
@@ -101,8 +101,8 @@ class dglabv3:
                 self.send_message(
                     {"type": "heartbeat", "clientId": self.client_id, "message": "200"}
                 )
-                self.set_strength(1, 4, self.interval)
-                self.set_strength(2, 4, self.interval)
+                self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength)
+                self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength)
             else:
                 logger.error("WebSocket not connected")
 
@@ -145,6 +145,9 @@ class dglabv3:
         if self.client_id in self.connects:
             del self.connects[self.client_id]
 
+    def _wave2hex(data):
+        return ["".join(format(num, "02X") for num in sum(item, [])) for item in data]
+
     async def send_wave_message(self, wave, time: int, channel: Channel = None):
         if channel == 1:
             channel = "A"
@@ -161,7 +164,7 @@ class dglabv3:
                 "channel": channel,
                 "clientId": client_id,
                 "targetId": target_id,
-                "message": f"{channel}:{json.dumps(wave)}",
+                "message": f"{channel}:{json.dumps(self._wave2hex(wave))}",
                 "time": time,
             }
 
@@ -187,7 +190,7 @@ class dglabv3:
             # message: clear-1 -> 清除A通道波形队列; clear-2 -> 清除B通道波形队列
             self.send_message(
                 {
-                    "type": 4,
+                    "type": "msg",
                     "clientId": client_id,
                     "targetId": target_id,
                     "message": "clear-1",
@@ -195,7 +198,7 @@ class dglabv3:
             )
             self.send_message(
                 {
-                    "type": 4,
+                    "type": "msg",
                     "clientId": client_id,
                     "targetId": target_id,
                     "message": "clear-2",
