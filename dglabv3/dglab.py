@@ -13,10 +13,11 @@ from type import (
     MessageType,
     MAX_STRENGTH,
     MIN_STRENGTH,
+    ChannelStrength
 )
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dglabv3")
 
 
 class dglabv3:
@@ -24,13 +25,13 @@ class dglabv3:
         self.client = None
         self.clienturl = "wss://ws.dungeon-lab.cn/"
         self.client_id = None
-        self.connects: dict[str, str] = {}
+        self.target_id = None
         self.heartbeat_interval = None
         self.pulse_name = None
         self.clientqrurl = "https://www.dungeon-lab.com/app-download.php#DGLAB-SOCKET#wss://ws.dungeon-lab.cn/"
-        self.strength = 0
         self.interval = 20
         self.maxInterval = 50
+        self.strength = ChannelStrength()
         self._bind_event = Event()
 
     async def connect_and_wait(self) -> None:
@@ -89,20 +90,21 @@ class dglabv3:
         qr.print_ascii(out=f)
         return f.getvalue()
 
-    def update_connects(self, message: dict):
+    def _update_connects(self, message: dict):
         if message["targetId"]:
-            self.connects[message["clientId"]] = message["targetId"]
-            self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength)
-            self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength)
+            self.target_id = message["targetId"]
+            self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength.A)
+            self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength.B)
 
-    def start_heartbeat(self):
+    def _start_heartbeat(self):
         def heartbeat():
             if self.client and self.client.sock and self.client.sock.connected:
-                self.send_message(
-                    {"type": "heartbeat", "clientId": self.client_id, "message": "200"}
+                self._send_message(
+                    {"type": "heartbeat", "clientId": self.client_id, "message": "200"},
+                    update=False,
                 )
-                self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength)
-                self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength)
+                self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength.A)
+                self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength.B)
             else:
                 logger.error("WebSocket not connected")
 
@@ -121,8 +123,8 @@ class dglabv3:
 
             if message.get("type") == "bind":
                 self.client_id = message["clientId"]
-                self.start_heartbeat()
-                self.update_connects(message)
+                self._start_heartbeat()
+                self._update_connects(message)
                 self._bind_event.set()
 
             logger.info(f"Received message: {message}")
@@ -130,8 +132,12 @@ class dglabv3:
             logger.info(f"Received raw message: {data}")
             logger.error(f"Error parsing message: {e}")
 
-    def send_message(self, message: dict):
+    def _send_message(self, message: dict, update=True):
         if self.client and self.client.sock and self.client.sock.connected:
+            if update:
+                dict.update(
+                    message, {"clientId": self.client_id, "targetId": self.target_id}
+                )
             self.client.send(json.dumps(message))
             logger.info(f"Sent message: {json.dumps(message)}")
         else:
@@ -142,13 +148,12 @@ class dglabv3:
             self.client.close()
             logger.info("WebSocket closed")
         self._stop_heartbeat()
-        if self.client_id in self.connects:
-            del self.connects[self.client_id]
+        self._bind_event.clear()
 
     def _wave2hex(data):
         return ["".join(format(num, "02X") for num in sum(item, [])) for item in data]
 
-    async def send_wave_message(self, wave, time: int, channel: Channel = None):
+    def send_wave_message(self, wave, time: int, channel: Channel = None):
         if channel == 1:
             channel = "A"
         elif channel == 2:
@@ -156,103 +161,151 @@ class dglabv3:
         elif channel == 3:
             channel = "BOTH"
 
-        def _create_wave_message(
-            client_id: str, target_id: str, channel: Channel, wave, time: int
-        ) -> dict:
+        def _create_wave_message(channel: Channel, wave, time: int) -> dict:
             return {
                 "type": MessageType.CLIENT_MSG,
                 "channel": channel,
-                "clientId": client_id,
-                "targetId": target_id,
                 "message": f"{channel}:{json.dumps(self._wave2hex(wave))}",
                 "time": time,
             }
 
-        for client_id, target_id in self.connects.items():
-            # type : clientMsg 固定不变
-            # message : A通道波形数据(16进制HEX数组json,具体见上面的协议说明)
-            # message2 : B通道波形数据(16进制HEX数组json,具体见上面的协议说明)
-            # time1 : A通道波形数据持续发送时长
-            # time2 : B通道波形数据持续发送时长
-            if channel == "BOTH":
-                for ch in ["A", "B"]:
-                    message = _create_wave_message(client_id, target_id, ch, wave, time)
-                    self.send_message(message)
-            else:
-                message = _create_wave_message(
-                    client_id, target_id, channel, wave, time
-                )
-                self.send_message(message)
+        # type : clientMsg 固定不变
+        # message : A通道波形数据(16进制HEX数组json,具体见上面的协议说明)
+        # message2 : B通道波形数据(16进制HEX数组json,具体见上面的协议说明)
+        # time1 : A通道波形数据持续发送时长
+        # time2 : B通道波形数据持续发送时长
+        if channel == "BOTH":
+            for ch in ["A", "B"]:
+                message = _create_wave_message(ch, wave, time)
+                self._send_message(message)
+        else:
+            message = _create_wave_message(channel, wave, time)
+            self._send_message(message)
 
-    def clear_all_wave(self):
-        for client_id, target_id in self.connects.items():
-            # type : msg 固定不变
-            # message: clear-1 -> 清除A通道波形队列; clear-2 -> 清除B通道波形队列
-            self.send_message(
+    def clear_wave(self, channel: Channel):
+        if channel == Channel.A:
+            self._send_message(
                 {
                     "type": "msg",
-                    "clientId": client_id,
-                    "targetId": target_id,
                     "message": "clear-1",
                 }
             )
-            self.send_message(
+        elif channel == Channel.B:
+            self._send_message(
                 {
                     "type": "msg",
-                    "clientId": client_id,
-                    "targetId": target_id,
                     "message": "clear-2",
                 }
             )
+        elif channel == Channel.BOTH:
+            self._send_message(
+                {
+                    "type": "msg",
+                    "message": "clear-1",
+                }
+            )
+            self._send_message(
+                {
+                    "type": "msg",
+                    "message": "clear-2",
+                }
+            )
+        else:
+            logger.error(f"Invalid channel: {channel}")
+
+    def clear_all_wave(self):
+        # type : msg 固定不变
+        # message: clear-1 -> 清除A通道波形队列; clear-2 -> 清除B通道波形队列
+        self._send_message(
+            {
+                "type": "msg",
+                "message": "clear-1",
+            }
+        )
+        self._send_message(
+            {
+                "type": "msg",
+                "message": "clear-2",
+            }
+        )
         logger.info("Cleared all waves")
         return True
 
     def set_strength(
         self, channel: Channel, type_id: StrengthType, strength: int
     ) -> None:
-        if strength < MIN_STRENGTH or strength > MAX_STRENGTH:
-            logger.error(
-                f"Invalid strength value. Must be between {MIN_STRENGTH} and {MAX_STRENGTH}"
-            )
-            return
+        # type : 1 -> 通道强度减少; 2 -> 通道强度增加; 3 -> 通道强度归零 ;4 -> 通道强度指定为某个值
+        # strength: 强度值变化量/指定强度值(当type为1或2时，该值会被强制设置为1)
+        # message: 'set channel' 固定不变
+        if type_id in [
+            StrengthType.DECREASE,
+            StrengthType.INCREASE,
+            StrengthType.ZERO,
+        ]:
+            # 當type為DECREASE或INCREASE時，強度值強制設為1
+            if type_id in [StrengthType.DECREASE, StrengthType.INCREASE]:
+                strength = 1
 
-        for client_id, target_id in self.connects.items():
-            # type : 1 -> 通道强度减少; 2 -> 通道强度增加; 3 -> 通道强度归零 ;4 -> 通道强度指定为某个值
-            # strength: 强度值变化量/指定强度值(当type为1或2时，该值会被强制设置为1)
-            # message: 'set channel' 固定不变
-            if type_id in [
-                StrengthType.DECREASE,
-                StrengthType.INCREASE,
-                StrengthType.ZERO,
-            ]:
-                # 當type為DECREASE或INCREASE時，強度值強制設為1
-                if type_id in [StrengthType.DECREASE, StrengthType.INCREASE]:
-                    strength = 1
-
-                self.send_message(
+            if channel == Channel.BOTH:
+                self._send_message(
+                    {
+                        "type": type_id,
+                        "channel": Channel.A,
+                        "strength": strength,
+                        "message": MessageType.SET_CHANNEL,
+                    }
+                )
+                self._send_message(
+                    {
+                        "type": type_id,
+                        "channel": Channel.B,
+                        "strength": strength,
+                        "message": MessageType.SET_CHANNEL,
+                    }
+                )
+            else:
+                self._send_message(
                     {
                         "type": type_id,
                         "channel": channel,
-                        "clientId": client_id,
-                        "targetId": target_id,
                         "strength": strength,
                         "message": MessageType.SET_CHANNEL,
                     }
                 )
 
-            elif type_id == StrengthType.SPECIFIC:
-                self.send_message(
+        elif type_id == StrengthType.SPECIFIC:
+            if channel == Channel.BOTH:
+                self._send_message(
                     {
                         "type": type_id,
-                        "clientId": client_id,
-                        "targetId": target_id,
-                        "message": f"strength-{channel}+{StrengthMode.SPECIFIC}+{strength}",
+                        "message": f"strength-{Channel.A}+{StrengthMode.SPECIFIC}+{self.strength.A}",
                     }
                 )
-
+                self._send_message(
+                    {
+                        "type": type_id,
+                        "message": f"strength-{Channel.B}+{StrengthMode.SPECIFIC}+{self.strength.B}",
+                    }
+                )
             else:
-                logger.error(f"Invalid type id: {type_id}")
-                return
+                if channel == Channel.A:
+                    self._send_message(
+                        {
+                            "type": type_id,
+                            "message": f"strength-{channel}+{StrengthMode.SPECIFIC}+{self.strength.A}",
+                        }
+                    )
+                elif channel == Channel.B:
+                    self._send_message(
+                        {
+                            "type": type_id,
+                            "message": f"strength-{channel}+{StrengthMode.SPECIFIC}+{self.strength.B}",
+                        }
+                    )
+
+        else:
+            logger.error(f"Invalid type id: {type_id}")
+            return
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 from enum import Enum, IntEnum
 from typing import Final
+from dataclasses import dataclass, field
+
 
 # 通道定義
 class Channel(IntEnum):
@@ -7,19 +9,50 @@ class Channel(IntEnum):
     B = 2
     BOTH = 3
 
+
+@dataclass
+class ChannelStrength:
+    _A: int = field(default=0, init=False)
+    _B: int = field(default=0, init=False)
+
+    def __post_init__(self):
+        self.A = self._A
+        self.B = self._B
+
+    @property
+    def A(self):
+        return self._A
+
+    @A.setter
+    def A(self, value):
+        if value > 200:
+            raise ValueError("stronger A cannot be greater than 200")
+        self._A = value
+
+    @property
+    def B(self):
+        return self._B
+
+    @B.setter
+    def B(self, value):
+        if value > 200:
+            raise ValueError("stronger B cannot be greater than 200")
+        self._B = value
+
+
 # 強度調整類型
 class StrengthType(IntEnum):
     DECREASE = 1  # 通道強度減少
     INCREASE = 2  # 通道強度增加
-    ZERO = 3      # 通道強度歸零
+    ZERO = 3  # 通道強度歸零
     SPECIFIC = 4  # 通道強度指定為某個值
+
 
 # 強度變化模式（用於 type 4）
 class StrengthMode(IntEnum):
     DECREASE = 0  # 通道強度減少
     INCREASE = 1  # 通道強度增加
     SPECIFIC = 2  # 通道強度變化為指定數值
-
 
 
 MAX_STRENGTH: Final[int] = 200
