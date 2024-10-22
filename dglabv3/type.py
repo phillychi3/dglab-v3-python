@@ -14,6 +14,8 @@ MAX_STRENGTH: Final[int] = 200
 MIN_STRENGTH: Final[int] = 0
 
 
+__all__ = ["ChannelStrength", "StrengthType", "StrengthMode", "MessageType"]
+
 @dataclass
 class ChannelStrength:
     _A: int = field(default=0, init=False)
