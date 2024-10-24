@@ -40,17 +40,25 @@ class dglabv3:
         return self.client_id is not None
 
     async def connect_and_wait(self) -> None:
-        """連接並等待bind完成"""
+        """
+        連接並等待bind完成
+        """
         self.connect()
         await asyncio.get_event_loop().run_in_executor(None, self._bind_event.wait)
 
     async def wait_for_app_connect(self) -> None:
-        """等待app連結"""
+        """
+        等待app連結
+        """
         await asyncio.get_event_loop().run_in_executor(
             None, self._app_connect_event.wait
         )
 
     def connect(self) -> None:
+        """
+        連接到websocket服務器
+        """
+
         def on_message(ws, message):
             self._handle_message(message)
 
@@ -78,6 +86,9 @@ class dglabv3:
         wst.start()
 
     def generate_qrcode(self) -> io.BytesIO:
+        """
+        生成QR code圖片
+        """
         if self.client_id is None:
             logger.error("Client ID is empty, please connect to the server first")
             return
@@ -91,7 +102,9 @@ class dglabv3:
         return saveimg
 
     def generate_qrcode_text(self) -> str:
-        print("im in")
+        """
+        生成QR code文字
+        """
         if self.client_id is None:
             logger.error("Client ID is empty, please connect to the server first")
             return
@@ -153,6 +166,9 @@ class dglabv3:
             logger.error("WebSocket not connected")
 
     def close(self):
+        """
+        斷開連結
+        """
         if self.client:
             self.client.close()
             logger.info("WebSocket closed")
@@ -164,7 +180,13 @@ class dglabv3:
     def _wave2hex(data):
         return ["".join(format(num, "02X") for num in sum(item, [])) for item in data]
 
-    def send_wave_message(self, wave, time: int, channel: Channel = None):
+    def send_wave_message(self, wave, time: int = 10, channel: Channel = Channel.BOTH):
+        """
+        發送波形\n
+        wave: Pulse().breath\n
+        time: 30\n
+        channel: Channel.A
+        """
         if channel == 1:
             channel = "A"
         elif channel == 2:
@@ -242,9 +264,48 @@ class dglabv3:
         logger.info("Cleared all waves")
         return True
 
+    def set_strength_value(self, channel: Channel, strength: int) -> None:
+        """
+        设置通道强度
+        """
+        self.set_strength(channel, StrengthType.SPECIFIC, strength)
+
+    def add_strength_value(self, channel: Channel, strength: int) -> None:
+        """
+        增加通道強度
+        """
+        if channel == Channel.BOTH:
+            self.add_strength_value(Channel.A, strength)
+            self.add_strength_value(Channel.B, strength)
+            return
+        now_strength = self.strength.A if channel == Channel.A else self.strength.B
+        self.set_strength(channel, StrengthType.SPECIFIC, now_strength + strength)
+
+    def decrease_strength_value(self, channel: Channel, strength: int) -> None:
+        """
+        減少通道強度
+        """
+        if channel == Channel.BOTH:
+            self.decrease_strength_value(Channel.A, strength)
+            self.decrease_strength_value(Channel.B, strength)
+            return
+        now_strength = self.strength.A if channel == Channel.A else self.strength.B
+        self.set_strength(channel, StrengthType.SPECIFIC, now_strength - strength)
+
+    def reset_strength_value(self, channel: Channel) -> None:
+        """
+        通道強度重置為0
+        """
+        self.set_strength(channel, StrengthType.ZERO, 0)
+
     def set_strength(
         self, channel: Channel, type_id: StrengthType, strength: int
     ) -> None:
+        """
+        channel: 通道
+        type_id: StrengthType
+        strength: 強度值[0-200]
+        """
         # type : 1 -> 通道强度减少; 2 -> 通道强度增加; 3 -> 通道强度归零 ;4 -> 通道强度指定为某个值
         # strength: 强度值变化量/指定强度值(当type为1或2时，该值会被强制设置为1)
         # message: 'set channel' 固定不变

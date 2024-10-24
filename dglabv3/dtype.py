@@ -51,6 +51,13 @@ class ChannelStrength:
 
 # 強度調整類型
 class StrengthType(IntEnum):
+    """
+    屬性:
+        DECREASE: 通道強度減少
+        INCREASE: 通道強度增加
+        ZERO: 通道強度歸零
+        SPECIFIC: 通道強度指定為某個值
+    """
     DECREASE = 1  # 通道強度減少
     INCREASE = 2  # 通道強度增加
     ZERO = 3  # 通道強度歸零
@@ -59,6 +66,12 @@ class StrengthType(IntEnum):
 
 # 強度變化模式（用於 type 4）
 class StrengthMode(IntEnum):
+    """
+    屬性:
+        DECREASE: 通道強度減少
+        INCREASE: 通道強度增加
+        SPECIFIC: 通道強度變化為指定數值
+    """
     DECREASE = 0  # 通道強度減少
     INCREASE = 1  # 通道強度增加
     SPECIFIC = 2  # 通道強度變化為指定數值
