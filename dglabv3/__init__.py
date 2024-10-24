@@ -1,3 +1,3 @@
-from dglab import dglabv3
-from type import *
-from waves import PULSES
+from .dglab import dglabv3
+from .dtype import Channel,StrengthType
+from .waves import PULSES, ALL_PULSES, Pulse

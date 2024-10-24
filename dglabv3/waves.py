@@ -1,3 +1,48 @@
+import random
+
+
+class Pulse:
+    def __init__(self):
+        self.breath = PULSES["呼吸"]
+        self.tide = PULSES["潮汐"]
+        self.combo = PULSES["連擊"]
+        self.quick_pinch = PULSES["快速按捏"]
+        self.strong = PULSES["按捏增強"]
+        self.heartbeat = PULSES["心跳節奏"]
+        self.compress = PULSES["壓縮"]
+        self.rhythm = PULSES["節奏步伐"]
+        self.friction = PULSES["顆粒摩擦"]
+        self.bounce = PULSES["漸變彈跳"]
+        self.wave = PULSES["波浪"]
+        self.rain = PULSES["雨水冲刷"]
+        self.speed = PULSES["變速敲擊"]
+        self.signal = PULSES["信號燈"]
+        self.tease1 = PULSES["挑逗1"]
+        self.tease2 = PULSES["挑逗2"]
+
+    def random_pulse(self):
+        return PULSES[random.choice(ALL_PULSES)]
+
+
+ALL_PULSES = [
+    "呼吸",
+    "潮汐",
+    "連擊",
+    "快速按捏",
+    "按捏增強",
+    "心跳節奏",
+    "壓縮",
+    "節奏步伐",
+    "顆粒摩擦",
+    "漸變彈跳",
+    "波浪",
+    "雨水冲刷",
+    "變速敲擊",
+    "信號燈",
+    "挑逗1",
+    "挑逗2",
+]
+
 PULSES = {
     "呼吸": [
         [[10, 10, 10, 10], [0, 0, 0, 0]],

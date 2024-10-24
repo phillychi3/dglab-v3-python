@@ -6,12 +6,12 @@ import threading
 import io
 from threading import Event
 import asyncio
-from type import (
+from dglabv3.dtype import (
     Channel,
     StrengthType,
     StrengthMode,
     MessageType,
-    ChannelStrength
+    ChannelStrength,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -31,6 +31,7 @@ class dglabv3:
         self.maxInterval = 50
         self.strength = ChannelStrength()
         self._bind_event = Event()
+        self._app_connect_event = Event()
 
     def is_connected(self) -> bool:
         return self.client and self.client.sock and self.client.sock.connected
@@ -43,6 +44,12 @@ class dglabv3:
         self.connect()
         await asyncio.get_event_loop().run_in_executor(None, self._bind_event.wait)
 
+    async def wait_for_app_connect(self) -> None:
+        """等待app連結"""
+        await asyncio.get_event_loop().run_in_executor(
+            None, self._app_connect_event.wait
+        )
+
     def connect(self) -> None:
         def on_message(ws, message):
             self._handle_message(message)
@@ -53,7 +60,7 @@ class dglabv3:
 
         def on_close(ws, close_status_code, close_msg):
             logger.info("WebSocket connection closed")
-            self.stop_heartbeat()
+            self._stop_heartbeat()
 
         def on_open(ws):
             logger.info("WebSocket connected")
@@ -95,10 +102,11 @@ class dglabv3:
         return f.getvalue()
 
     def _update_connects(self, message: dict):
-        if message["targetId"]:
+        if message["targetId"] and message["targetId"] != "":
             self.target_id = message["targetId"]
             self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength.A)
             self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength.B)
+            self._app_connect_event.set()
 
     def _start_heartbeat(self):
         def heartbeat():
@@ -130,9 +138,8 @@ class dglabv3:
                 self._bind_event.set()
 
             logger.info(f"Received message: {message}")
-        except Exception as e:
+        except Exception as _:
             logger.info(f"Received raw message: {data}")
-            logger.error(f"Error parsing message: {e}")
 
     def _send_message(self, message: dict, update=True):
         if self.client and self.client.sock and self.client.sock.connected:
@@ -150,8 +157,10 @@ class dglabv3:
             self.client.close()
             logger.info("WebSocket closed")
         self._stop_heartbeat()
+        self._app_connect_event.clear()
         self._bind_event.clear()
 
+    @staticmethod
     def _wave2hex(data):
         return ["".join(format(num, "02X") for num in sum(item, [])) for item in data]
 
@@ -277,6 +286,8 @@ class dglabv3:
 
         elif type_id == StrengthType.SPECIFIC:
             if channel == Channel.BOTH:
+                self.strength.A = strength
+                self.strength.B = strength
                 self._send_message(
                     {
                         "type": type_id,
@@ -291,6 +302,7 @@ class dglabv3:
                 )
             else:
                 if channel == Channel.A:
+                    self.strength.A = strength
                     self._send_message(
                         {
                             "type": type_id,
@@ -298,6 +310,7 @@ class dglabv3:
                         }
                     )
                 elif channel == Channel.B:
+                    self.strength.B = strength
                     self._send_message(
                         {
                             "type": type_id,

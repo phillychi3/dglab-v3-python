@@ -2,8 +2,9 @@ from enum import Enum, IntEnum
 from typing import Final
 from dataclasses import dataclass, field
 
+__all__ = ["ChannelStrength", "StrengthType", "StrengthMode", "MessageType", "Channel"]
 
-# 通道定義
+
 class Channel(IntEnum):
     A = 1
     B = 2
@@ -13,8 +14,6 @@ class Channel(IntEnum):
 MAX_STRENGTH: Final[int] = 200
 MIN_STRENGTH: Final[int] = 0
 
-
-__all__ = ["ChannelStrength", "StrengthType", "StrengthMode", "MessageType"]
 
 @dataclass
 class ChannelStrength:
@@ -70,3 +69,4 @@ class MessageType(str, Enum):
     HEARTBEAT = "heartbeat"
     BIND = "bind"
     CLIENT_MSG = "clientMsg"
+    MSG = "msg"
