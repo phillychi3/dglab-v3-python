@@ -58,6 +58,7 @@ class StrengthType(IntEnum):
         ZERO: 通道強度歸零
         SPECIFIC: 通道強度指定為某個值
     """
+
     DECREASE = 1  # 通道強度減少
     INCREASE = 2  # 通道強度增加
     ZERO = 3  # 通道強度歸零
@@ -72,6 +73,7 @@ class StrengthMode(IntEnum):
         INCREASE: 通道強度增加
         SPECIFIC: 通道強度變化為指定數值
     """
+
     DECREASE = 0  # 通道強度減少
     INCREASE = 1  # 通道強度增加
     SPECIFIC = 2  # 通道強度變化為指定數值

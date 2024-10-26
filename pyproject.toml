@@ -24,3 +24,20 @@ include = ["dglabv3*"]
 
 [tool.setuptools_scm]
 local_scheme = "no-local-version"
+
+[tool.ruff]
+select = ["E", "F"]
+ignore = []
+fixable = ["A", "B", "C", "D", "E", "F" ]
+unfixable = []
+
+line-length = 120
+
+exclude = [
+    ".eggs",
+    ".git",
+    ".ruff_cache",
+    "build",
+    "dist",
+    "venv",
+]

@@ -14,7 +14,7 @@ from dglabv3.dtype import (
     ChannelStrength,
 )
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger("dglabv3")
 
 
@@ -39,20 +39,32 @@ class dglabv3:
     def is_linked_to_app(self) -> bool:
         return self.client_id is not None
 
-    async def connect_and_wait(self) -> None:
+    async def connect_and_wait(self, timeout: int = 30) -> None:
         """
         連接並等待bind完成
         """
         self.connect()
-        await asyncio.get_event_loop().run_in_executor(None, self._bind_event.wait)
+        try:
+            await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(None, self._bind_event.wait),
+                timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.error("Bind timeout")
+            raise TimeoutError("Bind timeout")
 
-    async def wait_for_app_connect(self) -> None:
+    async def wait_for_app_connect(self, timeout: int = 30) -> None:
         """
         等待app連結
         """
-        await asyncio.get_event_loop().run_in_executor(
-            None, self._app_connect_event.wait
-        )
+        try:
+            await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(None, self._app_connect_event.wait),
+                timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.error("App connect timeout")
+            raise TimeoutError("App connect timeout")
 
     def connect(self) -> None:
         """
@@ -157,9 +169,7 @@ class dglabv3:
     def _send_message(self, message: dict, update=True):
         if self.client and self.client.sock and self.client.sock.connected:
             if update:
-                dict.update(
-                    message, {"clientId": self.client_id, "targetId": self.target_id}
-                )
+                dict.update(message, {"clientId": self.client_id, "targetId": self.target_id})
             self.client.send(json.dumps(message))
             logger.info(f"Sent message: {json.dumps(message)}")
         else:
@@ -298,9 +308,7 @@ class dglabv3:
         """
         self.set_strength(channel, StrengthType.ZERO, 0)
 
-    def set_strength(
-        self, channel: Channel, type_id: StrengthType, strength: int
-    ) -> None:
+    def set_strength(self, channel: Channel, type_id: StrengthType, strength: int) -> None:
         """
         channel: 通道
         type_id: StrengthType
