@@ -29,9 +29,11 @@ class dglabv3:
         self.clientqrurl = "https://www.dungeon-lab.com/app-download.php#DGLAB-SOCKET#wss://ws.dungeon-lab.cn/"
         self.interval = 20
         self.maxInterval = 50
+        self.disconnect_time = 30
         self.strength = ChannelStrength()
         self._bind_event = Event()
         self._app_connect_event = Event()
+        self._disconnect_count = 0
 
     def is_connected(self) -> bool:
         return self.client and self.client.sock and self.client.sock.connected
@@ -79,11 +81,11 @@ class dglabv3:
             self.close()
 
         def on_close(ws, close_status_code, close_msg):
-            logger.info("WebSocket connection closed")
+            logger.debug("WebSocket connection closed")
             self._stop_heartbeat()
 
         def on_open(ws):
-            logger.info("WebSocket connected")
+            logger.debug("WebSocket connected")
 
         self.client = websocket.WebSocketApp(
             self.clienturl,
@@ -140,6 +142,13 @@ class dglabv3:
                     {"type": "heartbeat", "clientId": self.client_id, "message": "200"},
                     update=False,
                 )
+                if self.target_id is None:
+                    self._disconnect_count += 1
+                    if self._disconnect_count >= self.disconnect_time:
+                        logger.error("Disconnected from app")
+                        self.close()
+                else:
+                    self._disconnect_count = 0
             else:
                 logger.error("WebSocket not connected")
 
@@ -150,9 +159,10 @@ class dglabv3:
         if self.heartbeat_interval:
             self.heartbeat_interval.cancel()
             self.heartbeat_interval = None
-            logger.info("Heartbeat stopped")
+            logger.debug("Heartbeat stopped")
 
     def _handle_message(self, data: str):
+        #TODO: 處理訊息
         try:
             message = json.loads(data)
 
@@ -162,16 +172,16 @@ class dglabv3:
                 self._update_connects(message)
                 self._bind_event.set()
 
-            logger.info(f"Received message: {message}")
+            logger.debug(f"Received message: {message}")
         except Exception as _:
-            logger.info(f"Received raw message: {data}")
+            logger.debug(f"Received raw message: {data}")
 
     def _send_message(self, message: dict, update=True):
         if self.client and self.client.sock and self.client.sock.connected:
             if update:
                 dict.update(message, {"clientId": self.client_id, "targetId": self.target_id})
             self.client.send(json.dumps(message))
-            logger.info(f"Sent message: {json.dumps(message)}")
+            logger.debug(f"Sent message: {json.dumps(message)}")
         else:
             logger.error("WebSocket not connected")
 
@@ -181,7 +191,7 @@ class dglabv3:
         """
         if self.client:
             self.client.close()
-            logger.info("WebSocket closed")
+            logger.debug("WebSocket closed")
         self._stop_heartbeat()
         self._app_connect_event.clear()
         self._bind_event.clear()
@@ -271,7 +281,7 @@ class dglabv3:
                 "message": "clear-2",
             }
         )
-        logger.info("Cleared all waves")
+        logger.debug("Cleared all waves")
         return True
 
     def set_strength_value(self, channel: Channel, strength: int) -> None:
