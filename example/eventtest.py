@@ -2,12 +2,19 @@ import asyncio
 from PIL import Image
 import sys
 import os
+
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dglabv3 import dglabv3
-from dglabv3 import Channel, StrengthType, PULSES
+from dglabv3 import Channel, StrengthType, PULSES, Strength
 
 
 client = dglabv3()
+
+
+@client.event()
+def on_strength(strength: Strength) -> None:
+    print(f"強度: {strength}")
 
 
 async def run():
@@ -16,6 +23,7 @@ async def run():
         qrcode = client.generate_qrcode()
         ig = Image.open(qrcode)
         ig.show()
+
         await client.wait_for_app_connect()
         client.set_strength(Channel.A, StrengthType.SPECIFIC, 1)
         await asyncio.sleep(1)

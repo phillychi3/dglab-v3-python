@@ -7,19 +7,23 @@ import io
 from threading import Event
 import asyncio
 from dglabv3.dtype import (
+    Button,
     Channel,
     StrengthType,
     StrengthMode,
     MessageType,
     ChannelStrength,
 )
+from dglabv3.wsmessage import Strength, WSMessage, WStype
+from dglabv3.event import EventEmitter
 
-logging.basicConfig(level=logging.WARN)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("dglabv3")
 
 
-class dglabv3:
+class dglabv3(EventEmitter):
     def __init__(self) -> None:
+        super().__init__()
         self.client = None
         self.clienturl = "wss://ws.dungeon-lab.cn/"
         self.client_id = None
@@ -34,6 +38,17 @@ class dglabv3:
         self._bind_event = Event()
         self._app_connect_event = Event()
         self._disconnect_count = 0
+
+    # @classmethod
+    # def event(cls, name=None):
+    #     return event(name)
+
+    def _dispatch_button(self, button: Button) -> None:
+        self.emit("button", button)
+
+    def _dispatch_strength(self, strength: Strength) -> None:
+        logger.debug(f"Dispatch strength: {strength}")
+        self.emit("strength", strength)
 
     def is_connected(self) -> bool:
         return self.client and self.client.sock and self.client.sock.connected
@@ -128,9 +143,9 @@ class dglabv3:
         qr.print_ascii(out=f)
         return f.getvalue()
 
-    def _update_connects(self, message: dict):
-        if message["targetId"] and message["targetId"] != "":
-            self.target_id = message["targetId"]
+    def _update_connects(self, message: WSMessage):
+        if message.targetID:
+            self.target_id = message.targetID
             self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength.A)
             self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength.B)
             self._app_connect_event.set()
@@ -162,18 +177,28 @@ class dglabv3:
             logger.debug("Heartbeat stopped")
 
     def _handle_message(self, data: str):
-        #TODO: 處理訊息
         try:
             message = json.loads(data)
-
-            if message.get("type") == "bind":
-                self.client_id = message["clientId"]
+            WSmsg = WSMessage(message)
+            if WSmsg.type == WStype.BIND:
+                self.client_id = WSmsg.clientID
                 self._start_heartbeat()
-                self._update_connects(message)
+                self._update_connects(WSmsg)
                 self._bind_event.set()
 
+            elif WSmsg.type == WStype.MSG:
+                if WSmsg.msg.startswith("feedback"):
+                    button = WSmsg.feedback()
+                    self._dispatch_button(button)
+                elif WSmsg.msg.startswith("strength"):
+                    self.strength.set_strength(WSmsg.strength())
+                    self._dispatch_strength(WSmsg.strength())
+                else:
+                    logger.warning(f"Unknown message type: {WSmsg.msg}")
+
             logger.debug(f"Received message: {message}")
-        except Exception as _:
+        except Exception as e:
+            logger.warning(f"Error: {e}")
             logger.debug(f"Received raw message: {data}")
 
     def _send_message(self, message: dict, update=True):

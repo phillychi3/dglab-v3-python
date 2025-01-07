@@ -1,6 +1,7 @@
 from enum import Enum, IntEnum
 from typing import Final
 from dataclasses import dataclass, field
+from dglabv3.wsmessage import Strength
 
 __all__ = ["ChannelStrength", "StrengthType", "StrengthMode", "MessageType", "Channel"]
 
@@ -19,34 +20,64 @@ MIN_STRENGTH: Final[int] = 0
 class ChannelStrength:
     _A: int = field(default=0, init=False)
     _B: int = field(default=0, init=False)
+    _MAX_A: int = field(default=MAX_STRENGTH, init=False)
+    _MAX_B: int = field(default=MAX_STRENGTH, init=False)
 
     def __post_init__(self):
         self.A = self._A
         self.B = self._B
+        self.MAX_A = self._MAX_A
+        self.MAX_B = self._MAX_B
 
     @property
     def A(self):
         return self._A
 
+    @property
+    def MAX_A(self):
+        return self._MAX_A
+
     @A.setter
     def A(self, value):
-        if value > MAX_STRENGTH:
-            raise ValueError("stronger A cannot be greater than 200")
+        if value > self.MAX_A:
+            raise ValueError(f"stronge is greater than {self.MAX_A}")
         if value < MIN_STRENGTH:
             raise ValueError("stronger A cannot be less than 0")
         self._A = value
+
+    @MAX_A.setter
+    def MAX_A(self, value):
+        if value < 0:
+            raise ValueError("MAX_A cannot be less than 0")
+        self._MAX_A = value
 
     @property
     def B(self):
         return self._B
 
+    @property
+    def MAX_B(self):
+        return self._MAX_B
+
     @B.setter
     def B(self, value):
-        if value > MAX_STRENGTH:
-            raise ValueError("stronger B cannot be greater than 200")
+        if value > self.MAX_B:
+            raise ValueError(f"stronger is greater than {self.MAX_B}")
         if value < MIN_STRENGTH:
             raise ValueError("stronger B cannot be less than 0")
         self._B = value
+
+    @MAX_B.setter
+    def MAX_B(self, value):
+        if value < 0:
+            raise ValueError("MAX_B cannot be less than 0")
+        self._MAX_B = value
+
+    def set_strength(self, strength: Strength):
+        self.MAX_A = strength.MAXA
+        self.MAX_B = strength.MAXB
+        self.A = strength.A
+        self.B = strength.B
 
 
 # 強度調整類型
@@ -85,3 +116,12 @@ class MessageType(str, Enum):
     BIND = "bind"
     CLIENT_MSG = "clientMsg"
     MSG = "msg"
+
+
+class Button(str, Enum):
+    button_1 = "1"
+    button_2 = "2"
+    button_3 = "3"
+    button_4 = "4"
+    button_5 = "5"
+    button_6 = "6"
