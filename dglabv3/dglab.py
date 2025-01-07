@@ -1,11 +1,11 @@
-import websocket
 import json
 import logging
 import qrcode
-import threading
 import io
-from threading import Event
 import asyncio
+from threading import Event
+from websockets.asyncio.client import connect as ws_connect
+import websockets
 from dglabv3.dtype import (
     Button,
     Channel,
@@ -39,14 +39,10 @@ class dglabv3(EventEmitter):
         self._app_connect_event = Event()
         self._disconnect_count = 0
 
-    # @classmethod
-    # def event(cls, name=None):
-    #     return event(name)
-
-    def _dispatch_button(self, button: Button) -> None:
+    async def _dispatch_button(self, button: Button) -> None:
         self.emit("button", button)
 
-    def _dispatch_strength(self, strength: Strength) -> None:
+    async def _dispatch_strength(self, strength: Strength) -> None:
         logger.debug(f"Dispatch strength: {strength}")
         self.emit("strength", strength)
 
@@ -83,36 +79,26 @@ class dglabv3(EventEmitter):
             logger.error("App connect timeout")
             raise TimeoutError("App connect timeout")
 
-    def connect(self) -> None:
-        """
-        連接到websocket服務器
-        """
-
-        def on_message(ws, message):
-            self._handle_message(message)
-
-        def on_error(ws, error):
-            logger.error(f"WebSocket connection error: {error}")
+    async def connect(self) -> None:
+        try:
+            self.client = await ws_connect(self.clienturl)
+            logger.debug("WebSocket connected")
+            asyncio.create_task(self._listen())
+        except Exception as e:
+            logger.error(f"WebSocket connection error: {e}")
             self.close()
+            raise ConnectionError("WebSocket connection error")
 
-        def on_close(ws, close_status_code, close_msg):
+    async def _listen(self):
+        try:
+            async for message in self.client:
+                await self._handle_message(message)
+        except websockets.ConnectionClosed:
             logger.debug("WebSocket connection closed")
             self._stop_heartbeat()
-
-        def on_open(ws):
-            logger.debug("WebSocket connected")
-
-        self.client = websocket.WebSocketApp(
-            self.clienturl,
-            on_message=on_message,
-            on_error=on_error,
-            on_close=on_close,
-            on_open=on_open,
-        )
-
-        wst = threading.Thread(target=self.client.run_forever)
-        wst.daemon = True
-        wst.start()
+        except Exception as e:
+            logger.error(f"WebSocket error: {e}")
+            self.close()
 
     def generate_qrcode(self) -> io.BytesIO:
         """
@@ -150,25 +136,37 @@ class dglabv3(EventEmitter):
             self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength.B)
             self._app_connect_event.set()
 
-    def _start_heartbeat(self):
-        def heartbeat():
-            if self.client and self.client.sock and self.client.sock.connected:
-                self._send_message(
-                    {"type": "heartbeat", "clientId": self.client_id, "message": "200"},
-                    update=False,
-                )
-                if self.target_id is None:
-                    self._disconnect_count += 1
-                    if self._disconnect_count >= self.disconnect_time:
-                        logger.error("Disconnected from app")
-                        self.close()
+    async def _heartbeat(self):
+        while True:
+            try:
+                if self.client and self.client.state == websockets.client.State.OPEN:
+                    await self._send_message(
+                        {"type": "heartbeat", "clientId": self.client_id, "message": "200"}, update=False
+                    )
+                    if self.target_id is None:
+                        self._disconnect_count += 1
+                        if self._disconnect_count >= self.disconnect_time:
+                            logger.error("Disconnected from app")
+                            await self.close()
+                            break
+                    else:
+                        self._disconnect_count = 0
                 else:
-                    self._disconnect_count = 0
-            else:
-                logger.error("WebSocket not connected")
+                    logger.error("WebSocket not connected")
+                    break
 
-        self.heartbeat_interval = threading.Timer(self.interval, heartbeat)
-        self.heartbeat_interval.start()
+                await asyncio.sleep(self.interval)
+
+            except websockets.ConnectionClosed:
+                logger.error("WebSocket connection closed")
+                break
+            except Exception as e:
+                logger.error(f"Error: {e}")
+                break
+
+    def _start_heartbeat(self):
+        """啟動心跳檢測"""
+        self.heartbeat_task = asyncio.create_task(self._heartbeat())
 
     def _stop_heartbeat(self):
         if self.heartbeat_interval:
@@ -176,7 +174,7 @@ class dglabv3(EventEmitter):
             self.heartbeat_interval = None
             logger.debug("Heartbeat stopped")
 
-    def _handle_message(self, data: str):
+    async def _handle_message(self, data: str):
         try:
             message = json.loads(data)
             WSmsg = WSMessage(message)
@@ -189,10 +187,10 @@ class dglabv3(EventEmitter):
             elif WSmsg.type == WStype.MSG:
                 if WSmsg.msg.startswith("feedback"):
                     button = WSmsg.feedback()
-                    self._dispatch_button(button)
+                    await self._dispatch_button(button)
                 elif WSmsg.msg.startswith("strength"):
                     self.strength.set_strength(WSmsg.strength())
-                    self._dispatch_strength(WSmsg.strength())
+                    await self._dispatch_strength(WSmsg.strength())
                 else:
                     logger.warning(f"Unknown message type: {WSmsg.msg}")
 
@@ -201,25 +199,35 @@ class dglabv3(EventEmitter):
             logger.warning(f"Error: {e}")
             logger.debug(f"Received raw message: {data}")
 
-    def _send_message(self, message: dict, update=True):
-        if self.client and self.client.sock and self.client.sock.connected:
-            if update:
-                dict.update(message, {"clientId": self.client_id, "targetId": self.target_id})
-            self.client.send(json.dumps(message))
-            logger.debug(f"Sent message: {json.dumps(message)}")
-        else:
-            logger.error("WebSocket not connected")
+    async def _send_message(self, message: dict, update: bool = True) -> None:
+        try:
+            if self.client and self.client.state == websockets.client.State.OPEN:
+                if update:
+                    message.update({"clientId": self.client_id, "targetId": self.target_id})
+                await self.client.send(json.dumps(message))
+                logger.debug(f"Sent message: {json.dumps(message)}")
+            else:
+                logger.error("WebSocket not connected")
+        except websockets.ConnectionClosed:
+            logger.error("WebSocket connection closed")
+        except Exception as e:
+            logger.error(f"Error on sending message: {e}")
 
-    def close(self):
+    async def close(self):
         """
         斷開連結
         """
-        if self.client:
-            self.client.close()
-            logger.debug("WebSocket closed")
-        self._stop_heartbeat()
-        self._app_connect_event.clear()
-        self._bind_event.clear()
+        try:
+            if self.client:
+                await self.client.close()
+                logger.debug("WebSocket closed")
+        except Exception as e:
+            logger.error(f"Error on closing WebSocket: {e}")
+        finally:
+            self._stop_heartbeat()
+            self._app_connect_event.clear()
+            self._bind_event.clear()
+            self.client = None
 
     @staticmethod
     def _wave2hex(data):
