@@ -47,9 +47,15 @@ class dglabv3(EventEmitter):
         self.emit("strength", strength)
 
     def is_connected(self) -> bool:
+        """
+        是否連接到WebSocket
+        """
         return self.client and self.client.sock and self.client.sock.connected
 
     def is_linked_to_app(self) -> bool:
+        """
+        是否連接到app
+        """
         return self.client_id is not None
 
     async def connect_and_wait(self, timeout: int = 30) -> None:
@@ -80,6 +86,9 @@ class dglabv3(EventEmitter):
             raise TimeoutError("App connect timeout")
 
     async def connect(self) -> None:
+        """
+        連接WebSocket
+        """
         try:
             self.client = await ws_connect(self.clienturl)
             logger.debug("WebSocket connected")
@@ -129,11 +138,11 @@ class dglabv3(EventEmitter):
         qr.print_ascii(out=f)
         return f.getvalue()
 
-    def _update_connects(self, message: WSMessage):
+    async def _update_connects(self, message: WSMessage):
         if message.targetID:
             self.target_id = message.targetID
-            self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength.A)
-            self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength.B)
+            await self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength.A)
+            await self.set_strength(Channel.B, StrengthType.SPECIFIC, self.strength.B)
             self._app_connect_event.set()
 
     async def _heartbeat(self):
@@ -166,7 +175,7 @@ class dglabv3(EventEmitter):
 
     def _start_heartbeat(self):
         """啟動心跳檢測"""
-        self.heartbeat_task = asyncio.create_task(self._heartbeat())
+        self.heartbeat_interval = asyncio.create_task(self._heartbeat())
 
     def _stop_heartbeat(self):
         if self.heartbeat_interval:
@@ -181,7 +190,7 @@ class dglabv3(EventEmitter):
             if WSmsg.type == WStype.BIND:
                 self.client_id = WSmsg.clientID
                 self._start_heartbeat()
-                self._update_connects(WSmsg)
+                await self._update_connects(WSmsg)
                 self._bind_event.set()
 
             elif WSmsg.type == WStype.MSG:
@@ -233,7 +242,7 @@ class dglabv3(EventEmitter):
     def _wave2hex(data):
         return ["".join(format(num, "02X") for num in sum(item, [])) for item in data]
 
-    def send_wave_message(self, wave, time: int = 10, channel: Channel = Channel.BOTH):
+    async def send_wave_message(self, wave, time: int = 10, channel: Channel = Channel.BOTH):
         """
         發送波形\n
         wave: Pulse().breath\n
@@ -263,34 +272,34 @@ class dglabv3(EventEmitter):
         if channel == "BOTH":
             for ch in ["A", "B"]:
                 message = _create_wave_message(ch, wave, time)
-                self._send_message(message)
+                await self._send_message(message)
         else:
             message = _create_wave_message(channel, wave, time)
-            self._send_message(message)
+            await self._send_message(message)
 
-    def clear_wave(self, channel: Channel):
+    async def clear_wave(self, channel: Channel):
         if channel == Channel.A:
-            self._send_message(
+            await self._send_message(
                 {
                     "type": "msg",
                     "message": "clear-1",
                 }
             )
         elif channel == Channel.B:
-            self._send_message(
+            await self._send_message(
                 {
                     "type": "msg",
                     "message": "clear-2",
                 }
             )
         elif channel == Channel.BOTH:
-            self._send_message(
+            await self._send_message(
                 {
                     "type": "msg",
                     "message": "clear-1",
                 }
             )
-            self._send_message(
+            await self._send_message(
                 {
                     "type": "msg",
                     "message": "clear-2",
@@ -299,16 +308,16 @@ class dglabv3(EventEmitter):
         else:
             logger.error(f"Invalid channel: {channel}")
 
-    def clear_all_wave(self):
+    async def clear_all_wave(self):
         # type : msg 固定不变
         # message: clear-1 -> 清除A通道波形队列; clear-2 -> 清除B通道波形队列
-        self._send_message(
+        await self._send_message(
             {
                 "type": "msg",
                 "message": "clear-1",
             }
         )
-        self._send_message(
+        await self._send_message(
             {
                 "type": "msg",
                 "message": "clear-2",
@@ -317,41 +326,41 @@ class dglabv3(EventEmitter):
         logger.debug("Cleared all waves")
         return True
 
-    def set_strength_value(self, channel: Channel, strength: int) -> None:
+    async def set_strength_value(self, channel: Channel, strength: int) -> None:
         """
         设置通道强度
         """
-        self.set_strength(channel, StrengthType.SPECIFIC, strength)
+        await self.set_strength(channel, StrengthType.SPECIFIC, strength)
 
-    def add_strength_value(self, channel: Channel, strength: int) -> None:
+    async def add_strength_value(self, channel: Channel, strength: int) -> None:
         """
         增加通道強度
         """
         if channel == Channel.BOTH:
-            self.add_strength_value(Channel.A, strength)
-            self.add_strength_value(Channel.B, strength)
+            await self.add_strength_value(Channel.A, strength)
+            await self.add_strength_value(Channel.B, strength)
             return
         now_strength = self.strength.A if channel == Channel.A else self.strength.B
-        self.set_strength(channel, StrengthType.SPECIFIC, now_strength + strength)
+        await self.set_strength(channel, StrengthType.SPECIFIC, now_strength + strength)
 
-    def decrease_strength_value(self, channel: Channel, strength: int) -> None:
+    async def decrease_strength_value(self, channel: Channel, strength: int) -> None:
         """
         減少通道強度
         """
         if channel == Channel.BOTH:
-            self.decrease_strength_value(Channel.A, strength)
-            self.decrease_strength_value(Channel.B, strength)
+            await self.decrease_strength_value(Channel.A, strength)
+            await self.decrease_strength_value(Channel.B, strength)
             return
         now_strength = self.strength.A if channel == Channel.A else self.strength.B
-        self.set_strength(channel, StrengthType.SPECIFIC, now_strength - strength)
+        await self.set_strength(channel, StrengthType.SPECIFIC, now_strength - strength)
 
-    def reset_strength_value(self, channel: Channel) -> None:
+    async def reset_strength_value(self, channel: Channel) -> None:
         """
         通道強度重置為0
         """
-        self.set_strength(channel, StrengthType.ZERO, 0)
+        await self.set_strength(channel, StrengthType.ZERO, 0)
 
-    def set_strength(self, channel: Channel, type_id: StrengthType, strength: int) -> None:
+    async def set_strength(self, channel: Channel, type_id: StrengthType, strength: int) -> None:
         """
         channel: 通道
         type_id: StrengthType
@@ -370,7 +379,7 @@ class dglabv3(EventEmitter):
                 strength = 1
 
             if channel == Channel.BOTH:
-                self._send_message(
+                await self._send_message(
                     {
                         "type": type_id,
                         "channel": Channel.A,
@@ -378,7 +387,7 @@ class dglabv3(EventEmitter):
                         "message": MessageType.SET_CHANNEL,
                     }
                 )
-                self._send_message(
+                await self._send_message(
                     {
                         "type": type_id,
                         "channel": Channel.B,
@@ -387,7 +396,7 @@ class dglabv3(EventEmitter):
                     }
                 )
             else:
-                self._send_message(
+                await self._send_message(
                     {
                         "type": type_id,
                         "channel": channel,
@@ -400,13 +409,13 @@ class dglabv3(EventEmitter):
             if channel == Channel.BOTH:
                 self.strength.A = strength
                 self.strength.B = strength
-                self._send_message(
+                await self._send_message(
                     {
                         "type": type_id,
                         "message": f"strength-{Channel.A}+{StrengthMode.SPECIFIC}+{self.strength.A}",
                     }
                 )
-                self._send_message(
+                await self._send_message(
                     {
                         "type": type_id,
                         "message": f"strength-{Channel.B}+{StrengthMode.SPECIFIC}+{self.strength.B}",
@@ -415,7 +424,7 @@ class dglabv3(EventEmitter):
             else:
                 if channel == Channel.A:
                     self.strength.A = strength
-                    self._send_message(
+                    await self._send_message(
                         {
                             "type": type_id,
                             "message": f"strength-{channel}+{StrengthMode.SPECIFIC}+{self.strength.A}",
@@ -423,7 +432,7 @@ class dglabv3(EventEmitter):
                     )
                 elif channel == Channel.B:
                     self.strength.B = strength
-                    self._send_message(
+                    await self._send_message(
                         {
                             "type": type_id,
                             "message": f"strength-{channel}+{StrengthMode.SPECIFIC}+{self.strength.B}",

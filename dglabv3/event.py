@@ -20,7 +20,6 @@ def event(name: str = None):
         wrapper = async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
 
         event_name = name or func.__name__.removeprefix("on_")
-        wrapper.__event_name__ = event_name
 
         if not hasattr(func, "__self__"):
 
