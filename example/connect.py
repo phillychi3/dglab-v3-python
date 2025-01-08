@@ -2,6 +2,7 @@ import asyncio
 from PIL import Image
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dglabv3 import dglabv3
 from dglabv3 import Channel, StrengthType, PULSES
@@ -17,9 +18,9 @@ async def run():
         ig = Image.open(qrcode)
         ig.show()
         await client.wait_for_app_connect()
-        client.set_strength(Channel.A, StrengthType.SPECIFIC, 1)
+        await client.set_strength(Channel.A, StrengthType.SPECIFIC, 1)
         await asyncio.sleep(1)
-        client.send_wave_message(PULSES["呼吸"], 30, Channel.A)
+        await client.send_wave_message(PULSES["呼吸"], 30, Channel.A)
         await asyncio.sleep(10)
 
     except Exception as e:
