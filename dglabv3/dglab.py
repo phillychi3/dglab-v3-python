@@ -6,15 +6,7 @@ import asyncio
 from threading import Event
 from websockets.asyncio.client import connect as ws_connect
 import websockets
-from dglabv3.dtype import (
-    Button,
-    Channel,
-    StrengthType,
-    StrengthMode,
-    MessageType,
-    ChannelStrength,
-    Strength
-)
+from dglabv3.dtype import Button, Channel, StrengthType, StrengthMode, MessageType, ChannelStrength, Strength
 from dglabv3.wsmessage import WSMessage, WStype
 from dglabv3.event import EventEmitter
 
@@ -443,6 +435,30 @@ class dglabv3(EventEmitter):
         else:
             logger.error(f"Invalid type id: {type_id}")
             return
+
+    def get_strength_value(self, channel: Channel) -> int:
+        """
+        獲取通道強度
+        """
+        match channel:
+            case Channel.A:
+                return self.strength.A
+            case Channel.B:
+                return self.strength.B
+            case Channel.BOTH:
+                return min(self.strength.A, self.strength.B)
+
+    def get_max_strength_value(self, channel: Channel) -> int:
+        """
+        獲取通道最大強度
+        """
+        match channel:
+            case Channel.A:
+                return self.strength.MAX_A
+            case Channel.B:
+                return self.strength.MAX_B
+            case Channel.BOTH:
+                return min(self.strength.MAX_A, self.strength.MAX_B)
 
 
 if __name__ == "__main__":
