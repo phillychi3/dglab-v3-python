@@ -25,14 +25,16 @@ async def run():
         ig.show()
 
         await client.wait_for_app_connect()
-        client.set_strength(Channel.A, StrengthType.SPECIFIC, 1)
+        await client.set_strength(Channel.A, StrengthType.SPECIFIC, 1)
         await asyncio.sleep(1)
-        client.send_wave_message(PULSES["呼吸"], 30, Channel.A)
-        await asyncio.sleep(10)
+        await client.send_wave_message(PULSES["呼吸"], 30, Channel.A)
+        await asyncio.sleep(2)
 
     except Exception as e:
         print(f"An error occurred: {e}")
         exit(1)
+    finally:
+        await client.close()
 
 
 if __name__ == "__main__":

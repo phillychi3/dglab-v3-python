@@ -28,7 +28,6 @@ class dglabv3(EventEmitter):
         self.clienturl = "wss://ws.dungeon-lab.cn/"
         self.client_id = None
         self.target_id = None
-        self.heartbeat_interval = None
         self.pulse_name = None
         self.clientqrurl = "https://www.dungeon-lab.com/app-download.php#DGLAB-SOCKET#wss://ws.dungeon-lab.cn/"
         self.interval = 20
@@ -38,6 +37,9 @@ class dglabv3(EventEmitter):
         self._bind_event = Event()
         self._app_connect_event = Event()
         self._disconnect_count = 0
+        self._heartbeat_task = None
+        self._listen_task = None
+        self._closing = False
 
     async def _dispatch_button(self, button: Button) -> None:
         self.emit("button", button)
@@ -62,7 +64,7 @@ class dglabv3(EventEmitter):
         """
         連接並等待bind完成
         """
-        self.connect()
+        await self.connect()
         try:
             await asyncio.wait_for(
                 asyncio.get_event_loop().run_in_executor(None, self._bind_event.wait),
@@ -70,6 +72,7 @@ class dglabv3(EventEmitter):
             )
         except asyncio.TimeoutError:
             logger.error("Bind timeout")
+            await self.close()
             raise TimeoutError("Bind timeout")
 
     async def wait_for_app_connect(self, timeout: int = 30) -> None:
@@ -83,6 +86,7 @@ class dglabv3(EventEmitter):
             )
         except asyncio.TimeoutError:
             logger.error("App connect timeout")
+            await self.close()
             raise TimeoutError("App connect timeout")
 
     async def connect(self) -> None:
@@ -92,10 +96,10 @@ class dglabv3(EventEmitter):
         try:
             self.client = await ws_connect(self.clienturl)
             logger.debug("WebSocket connected")
-            asyncio.create_task(self._listen())
+            self._listen_task = asyncio.create_task(self._listen())
         except Exception as e:
             logger.error(f"WebSocket connection error: {e}")
-            self.close()
+            await self.close()
             raise ConnectionError("WebSocket connection error")
 
     async def _listen(self):
@@ -107,7 +111,6 @@ class dglabv3(EventEmitter):
             self._stop_heartbeat()
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
-            self.close()
 
     def generate_qrcode(self) -> io.BytesIO:
         """
@@ -146,42 +149,33 @@ class dglabv3(EventEmitter):
             self._app_connect_event.set()
 
     async def _heartbeat(self):
-        while True:
-            try:
-                if self.client and self.client.state == websockets.client.State.OPEN:
-                    await self._send_message(
-                        {"type": "heartbeat", "clientId": self.client_id, "message": "200"}, update=False
-                    )
-                    if self.target_id is None:
-                        self._disconnect_count += 1
-                        if self._disconnect_count >= self.disconnect_time:
-                            logger.error("Disconnected from app")
-                            await self.close()
-                            break
-                    else:
-                        self._disconnect_count = 0
+        try:
+            while not self._closing:
+                await self._send_message(
+                    {"type": "heartbeat", "clientId": self.client_id, "message": "200"}, update=False
+                )
+
+                if self.target_id is None:
+                    self._disconnect_count += 1
+                    if self._disconnect_count >= self.disconnect_time:
+                        logger.error("Disconnected from app")
+                        await self.close()
+                        break
                 else:
-                    logger.error("WebSocket not connected")
-                    break
+                    self._disconnect_count = 0
 
                 await asyncio.sleep(self.interval)
 
-            except websockets.ConnectionClosed:
-                logger.error("WebSocket connection closed")
-                break
-            except Exception as e:
-                logger.error(f"Error: {e}")
-                break
+        except websockets.ConnectionClosed:
+            logger.info("WebSocket connection closed")
+        except Exception as e:
+            logger.error(f"Heartbeat error: {e}")
 
     def _start_heartbeat(self):
         """啟動心跳檢測"""
-        self.heartbeat_interval = asyncio.create_task(self._heartbeat())
-
-    def _stop_heartbeat(self):
-        if self.heartbeat_interval:
-            self.heartbeat_interval.cancel()
-            self.heartbeat_interval = None
-            logger.debug("Heartbeat stopped")
+        if self._heartbeat_task:
+            self._heartbeat_task.cancel()
+        self._heartbeat_task = asyncio.create_task(self._heartbeat())
 
     async def _handle_message(self, data: str):
         try:
@@ -226,17 +220,23 @@ class dglabv3(EventEmitter):
         """
         斷開連結
         """
+        self._closing = True
         try:
+            for task in [self._heartbeat_task, self._listen_task]:
+                if task and not task.done():
+                    task.cancel()
             if self.client:
                 await self.client.close()
                 logger.debug("WebSocket closed")
         except Exception as e:
             logger.error(f"Error on closing WebSocket: {e}")
         finally:
-            self._stop_heartbeat()
+            self.client = None
+            self._heartbeat_task = None
+            self._listen_task = None
+            self._closing = False
             self._app_connect_event.clear()
             self._bind_event.clear()
-            self.client = None
 
     @staticmethod
     def _wave2hex(data):
@@ -456,6 +456,6 @@ if __name__ == "__main__":
 
         except Exception as e:
             logger.error(f"Error: {e}")
-            client.close()
+            await client.close()
 
     asyncio.run(main())
