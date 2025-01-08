@@ -1,7 +1,6 @@
-from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
-from dglabv3.dtype import Button
+from dglabv3.dtype import Button, Strength
 
 
 class WStype(Enum):
@@ -12,12 +11,7 @@ class WStype(Enum):
     ERROR = "error"
 
 
-@dataclass
-class Strength:
-    A: int
-    B: int
-    MAXA: int
-    MAXB: int
+
 
 
 class WSMessage:

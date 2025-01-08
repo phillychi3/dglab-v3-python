@@ -1,7 +1,6 @@
 from enum import Enum, IntEnum, StrEnum
 from typing import Final
 from dataclasses import dataclass, field
-from dglabv3.wsmessage import Strength
 
 __all__ = ["ChannelStrength", "StrengthType", "StrengthMode", "MessageType", "Channel"]
 
@@ -14,6 +13,14 @@ class Channel(IntEnum):
 
 MAX_STRENGTH: Final[int] = 200
 MIN_STRENGTH: Final[int] = 0
+
+
+@dataclass
+class Strength:
+    A: int
+    B: int
+    MAXA: int
+    MAXB: int
 
 
 @dataclass
@@ -40,7 +47,7 @@ class ChannelStrength:
     @A.setter
     def A(self, value):
         if value > self.MAX_A:
-            raise ValueError(f"stronge is greater than {self.MAX_A}")
+            raise ValueError(f"stronger A cannot be greater than {self.MAX_A}")
         if value < MIN_STRENGTH:
             raise ValueError("stronger A cannot be less than 0")
         self._A = value
@@ -62,7 +69,7 @@ class ChannelStrength:
     @B.setter
     def B(self, value):
         if value > self.MAX_B:
-            raise ValueError(f"stronger is greater than {self.MAX_B}")
+            raise ValueError(f"stronger B cannot be greater than {self.MAX_B}")
         if value < MIN_STRENGTH:
             raise ValueError("stronger B cannot be less than 0")
         self._B = value

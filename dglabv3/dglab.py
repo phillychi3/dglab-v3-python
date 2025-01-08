@@ -13,8 +13,9 @@ from dglabv3.dtype import (
     StrengthMode,
     MessageType,
     ChannelStrength,
+    Strength
 )
-from dglabv3.wsmessage import Strength, WSMessage, WStype
+from dglabv3.wsmessage import WSMessage, WStype
 from dglabv3.event import EventEmitter
 
 logging.basicConfig(level=logging.DEBUG)
