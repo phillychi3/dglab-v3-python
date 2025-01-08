@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
+from dglabv3.dtype import Button
 
 
 class WStype(Enum):
@@ -38,8 +39,8 @@ class WSMessage:
             if value is not None
         }
 
-    def feedback(self) -> dict:
-        return {"button": self.msg.split("-")[1]}
+    def feedback(self) -> Button:
+        return Button(self.msg.split("-")[1])
 
     def strength(self) -> Strength:
         splitmsg = self.msg.split("-")[1].split("+")

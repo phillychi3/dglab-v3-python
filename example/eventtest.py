@@ -6,7 +6,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dglabv3 import dglabv3
-from dglabv3 import Channel, StrengthType, PULSES, Strength
+from dglabv3 import Channel, StrengthType, PULSES, Strength, Button
 
 
 client = dglabv3()
@@ -15,6 +15,11 @@ client = dglabv3()
 @client.event()
 def on_strength(strength: Strength) -> None:
     print(f"強度: {strength}")
+
+
+@client.event()
+def on_button(button: Button) -> None:
+    print(f"按鈕: {button}")
 
 
 async def run():

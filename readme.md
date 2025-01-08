@@ -28,13 +28,16 @@ async def run():
         await client.connect_and_wait(timeout=30)
         print(client.generate_qrcode_text())
         await client.wait_for_app_connect(timeout=60)
-        client.set_strength_value(Channel.A, 20)
+        await client.set_strength_value(Channel.A, 20)
         await asyncio.sleep(1)
-        client.send_wave_message(Pulse().breath, 30, Channel.A)
+        await client.send_wave_message(Pulse().breath, 30, Channel.A)
 
     except Exception as e:
         print(f"An error occurred: {e}")
         exit(1)
+    finally:
+        await client.close()
+
 
 
 if __name__ == "__main__":
@@ -43,4 +46,4 @@ if __name__ == "__main__":
 ```
 
 > [!Note]
-> 如果發現無法設置到自己想要的強度，請檢察目前最高強度在哪裡，預設是40秒+1最大上限，可以手動拉高
+> 如果發現無法設置到自己想要的強度，請檢察目前最高強度在哪裡，預設是 40 秒+1 最大上限，可以手動拉高

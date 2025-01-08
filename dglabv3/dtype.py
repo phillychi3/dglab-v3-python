@@ -1,4 +1,4 @@
-from enum import Enum, IntEnum
+from enum import Enum, IntEnum, StrEnum
 from typing import Final
 from dataclasses import dataclass, field
 from dglabv3.wsmessage import Strength
@@ -118,7 +118,7 @@ class MessageType(str, Enum):
     MSG = "msg"
 
 
-class Button(str, Enum):
+class Button(StrEnum):
     button_1 = "1"
     button_2 = "2"
     button_3 = "3"
