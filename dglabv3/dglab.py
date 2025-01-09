@@ -101,9 +101,10 @@ class dglabv3(EventEmitter):
                 await self._handle_message(message)
         except websockets.ConnectionClosed:
             logger.debug("WebSocket connection closed")
-            self._stop_heartbeat()
+            self.close()
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
+            raise ConnectionError("WebSocket error")
 
     def generate_qrcode(self) -> io.BytesIO:
         """
@@ -197,7 +198,7 @@ class dglabv3(EventEmitter):
 
     async def _send_message(self, message: dict, update: bool = True) -> None:
         try:
-            if self.client and self.client.state == websockets.client.State.OPEN:
+            if self.client:
                 if update:
                     message.update({"clientId": self.client_id, "targetId": self.target_id})
                 await self.client.send(json.dumps(message))
@@ -235,7 +236,7 @@ class dglabv3(EventEmitter):
     def _wave2hex(data):
         return ["".join(format(num, "02X") for num in sum(item, [])) for item in data]
 
-    async def send_wave_message(self, wave, time: int = 10, channel: Channel = Channel.BOTH):
+    async def send_wave_message(self, wave: list[list[list[int]]], time: int = 10, channel: Channel = Channel.BOTH):
         """
         發送波形\n
         wave: Pulse().breath\n
