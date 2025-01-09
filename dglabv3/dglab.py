@@ -101,7 +101,6 @@ class dglabv3(EventEmitter):
                 await self._handle_message(message)
         except websockets.ConnectionClosed:
             logger.debug("WebSocket connection closed")
-            self.close()
         except Exception as e:
             logger.error(f"WebSocket error: {e}")
             raise ConnectionError("WebSocket error")
@@ -162,6 +161,7 @@ class dglabv3(EventEmitter):
 
         except websockets.ConnectionClosed:
             logger.info("WebSocket connection closed")
+            self.close()
         except Exception as e:
             logger.error(f"Heartbeat error: {e}")
 
@@ -206,7 +206,7 @@ class dglabv3(EventEmitter):
             else:
                 logger.error("WebSocket not connected")
         except websockets.ConnectionClosed:
-            logger.error("WebSocket connection closed")
+            logger.debug("WebSocket connection closed")
         except Exception as e:
             logger.error(f"Error on sending message: {e}")
 
