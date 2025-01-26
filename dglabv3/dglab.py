@@ -33,13 +33,24 @@ class dglabv3(EventEmitter):
         self._heartbeat_task = None
         self._listen_task = None
         self._closing = False
+        self.bot = None
 
     async def _dispatch_button(self, button: Button) -> None:
         self.emit("button", button)
+        if self.bot:
+            await self.bot.dispatch("dglab_button", button)
 
     async def _dispatch_strength(self, strength: Strength) -> None:
         logger.debug(f"Dispatch strength: {strength}")
         self.emit("strength", strength)
+        if self.bot:
+            await self.bot.dispatch("dglab_strength", strength)
+
+    def set_bot(self, bot):
+        """
+        設置discord bot
+        """
+        self.bot = bot
 
     def is_connected(self) -> bool:
         """
