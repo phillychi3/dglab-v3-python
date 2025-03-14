@@ -6,9 +6,11 @@ import asyncio
 from threading import Event
 from websockets.asyncio.client import connect as ws_connect
 import websockets
+
 from dglabv3.dtype import Button, Channel, StrengthType, StrengthMode, MessageType, ChannelStrength, Strength
 from dglabv3.wsmessage import WSMessage, WStype
 from dglabv3.event import EventEmitter
+from dglabv3.music_to_wave import convert_audio_to_v3_protocol
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("dglabv3")
@@ -246,6 +248,13 @@ class dglabv3(EventEmitter):
     @staticmethod
     def _wave2hex(data):
         return ["".join(format(num, "02X") for num in sum(item, [])) for item in data]
+
+    async def music_2_wave(self, mp3_file_path: str, channel: Channel = Channel.BOTH):
+        """
+        將音樂轉換為波形
+        """
+        data = convert_audio_to_v3_protocol(mp3_file_path)
+        await self.send_wave_message(data, channel=channel)
 
     async def send_wave_message(self, wave: list[list[list[int]]], time: int = 10, channel: Channel = Channel.BOTH):
         """
