@@ -1,8 +1,10 @@
+import random
+
 import discord
 from discord import app_commands
-import random
 from discord.ext import commands
-from dglabv3 import dglabv3, Channel, Pulse, ALL_PULSES, PULSES, Strength
+
+from dglabv3 import ALL_PULSES, PULSES, Channel, Pulse, Strength, dglabv3
 
 
 class dglab:

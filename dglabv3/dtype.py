@@ -1,6 +1,6 @@
+from dataclasses import dataclass, field
 from enum import Enum, IntEnum, StrEnum
 from typing import Final
-from dataclasses import dataclass, field
 
 __all__ = ["ChannelStrength", "StrengthType", "StrengthMode", "MessageType", "Channel"]
 

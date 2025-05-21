@@ -1,7 +1,8 @@
-import librosa
 import math
-import numpy as np
+
+import librosa
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def convert_audio_to_v3_protocol(mp3_file_path: str) -> list:

@@ -1,13 +1,11 @@
 import asyncio
-from PIL import Image
-import sys
 import os
+import sys
 
+from PIL import Image
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from dglabv3 import dglabv3
-from dglabv3 import Channel, StrengthType, PULSES, Strength, Button
-
+from dglabv3 import PULSES, Button, Channel, Strength, StrengthType, dglabv3
 
 client = dglabv3()
 
@@ -26,6 +24,9 @@ async def run():
     try:
         await client.connect_and_wait()
         qrcode = client.generate_qrcode()
+        if qrcode is None:
+            print("Failed to generate QR code.")
+            return
         ig = Image.open(qrcode)
         ig.show()
 

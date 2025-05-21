@@ -1,16 +1,19 @@
+import asyncio
+import io
 import json
 import logging
-import qrcode
-import io
-import asyncio
 from threading import Event
-from websockets.asyncio.client import connect as ws_connect
-import websockets
+from typing import Optional
 
-from dglabv3.dtype import Button, Channel, StrengthType, StrengthMode, MessageType, ChannelStrength, Strength
-from dglabv3.wsmessage import WSMessage, WStype
+import qrcode
+import websockets
+from websockets.asyncio.client import connect as ws_connect
+
+from dglabv3.dtype import (Button, Channel, ChannelStrength, MessageType,
+                           Strength, StrengthMode, StrengthType)
 from dglabv3.event import EventEmitter
 from dglabv3.music_to_wave import convert_audio_to_v3_protocol
+from dglabv3.wsmessage import WSMessage, WStype
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("dglabv3")
@@ -58,7 +61,7 @@ class dglabv3(EventEmitter):
         """
         是否連接到WebSocket
         """
-        return self.client and self.client.sock and self.client.sock.connected
+        return self.client is not None
 
     def is_linked_to_app(self) -> bool:
         """
@@ -110,6 +113,9 @@ class dglabv3(EventEmitter):
 
     async def _listen(self):
         try:
+            if self.client is None:
+                logger.error("WebSocket client is None")
+                return
             async for message in self.client:
                 await self._handle_message(message)
         except websockets.ConnectionClosed:
@@ -118,7 +124,7 @@ class dglabv3(EventEmitter):
             logger.error(f"WebSocket error: {e}")
             raise ConnectionError("WebSocket error")
 
-    def generate_qrcode(self) -> io.BytesIO:
+    def generate_qrcode(self) -> Optional[io.BytesIO]:
         """
         生成QR code圖片
         """
@@ -130,11 +136,11 @@ class dglabv3(EventEmitter):
         qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
         saveimg = io.BytesIO()
-        img.save(saveimg, format="PNG")
+        img.save(saveimg, format="PNG")  # type: ignore
         saveimg.seek(0)
         return saveimg
 
-    def generate_qrcode_text(self) -> str:
+    def generate_qrcode_text(self) -> Optional[str]:
         """
         生成QR code文字
         """
@@ -174,7 +180,7 @@ class dglabv3(EventEmitter):
 
         except websockets.ConnectionClosed:
             logger.info("WebSocket connection closed")
-            self.close()
+            await self.close()
         except Exception as e:
             logger.error(f"Heartbeat error: {e}")
 
@@ -184,7 +190,7 @@ class dglabv3(EventEmitter):
             self._heartbeat_task.cancel()
         self._heartbeat_task = asyncio.create_task(self._heartbeat())
 
-    async def _handle_message(self, data: str):
+    async def _handle_message(self, data: websockets.Data):
         try:
             message = json.loads(data)
             WSmsg = WSMessage(message)
@@ -195,14 +201,17 @@ class dglabv3(EventEmitter):
                 self._bind_event.set()
 
             elif WSmsg.type == WStype.MSG:
-                if WSmsg.msg.startswith("feedback"):
-                    button = WSmsg.feedback()
-                    await self._dispatch_button(button)
-                elif WSmsg.msg.startswith("strength"):
-                    self.strength.set_strength(WSmsg.strength())
-                    await self._dispatch_strength(WSmsg.strength())
+                if WSmsg.msg is not None:
+                    if WSmsg.msg.startswith("feedback"):
+                        button = WSmsg.feedback()
+                        await self._dispatch_button(button)
+                    elif WSmsg.msg.startswith("strength"):
+                        self.strength.set_strength(WSmsg.strength())
+                        await self._dispatch_strength(WSmsg.strength())
+                    else:
+                        logger.warning(f"Unknown message type: {WSmsg.msg}")
                 else:
-                    logger.warning(f"Unknown message type: {WSmsg.msg}")
+                    logger.warning("Received message with None content")
 
             logger.debug(f"Received message: {message}")
         except Exception as e:
@@ -263,18 +272,19 @@ class dglabv3(EventEmitter):
         time: 30\n
         channel: Channel.A
         """
-        if channel == 1:
-            channel = "A"
-        elif channel == 2:
-            channel = "B"
-        elif channel == 3:
-            channel = "BOTH"
+        channel_str = ""
+        if channel == Channel.A:
+            channel_str = "A"
+        elif channel == Channel.B:
+            channel_str = "B"
+        elif channel == Channel.BOTH:
+            channel_str = "BOTH"
 
-        def _create_wave_message(channel: str, wave, time: int) -> dict:
+        def _create_wave_message(ch_str: str, wave, time: int) -> dict:
             return {
                 "type": MessageType.CLIENT_MSG,
-                "channel": channel,
-                "message": f"{channel}:{json.dumps(self._wave2hex(wave))}",
+                "channel": ch_str,
+                "message": f"{ch_str}:{json.dumps(self._wave2hex(wave))}",
                 "time": time,
             }
 
@@ -283,12 +293,12 @@ class dglabv3(EventEmitter):
         # message2 : B通道波形数据(16进制HEX数组json,具体见上面的协议说明)
         # time1 : A通道波形数据持续发送时长
         # time2 : B通道波形数据持续发送时长
-        if channel == "BOTH":
+        if channel_str == "BOTH":
             for ch in ["A", "B"]:
                 message = _create_wave_message(ch, wave, time)
                 await self._send_message(message)
         else:
-            message = _create_wave_message(channel, wave, time)
+            message = _create_wave_message(channel_str, wave, time)
             await self._send_message(message)
 
     async def clear_wave(self, channel: Channel):

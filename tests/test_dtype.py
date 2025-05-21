@@ -1,6 +1,9 @@
-import pytest
 import random
-from dglabv3.dtype import ChannelStrength, Channel, StrengthType, StrengthMode, MessageType, Button
+
+import pytest
+
+from dglabv3.dtype import (Button, Channel, ChannelStrength, MessageType,
+                           StrengthMode, StrengthType)
 
 
 def test_channel_strength_initialization():

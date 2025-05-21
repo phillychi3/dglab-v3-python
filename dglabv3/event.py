@@ -1,13 +1,12 @@
 import asyncio
-from typing import Callable, Any, Dict, List
 import functools
 import logging
-
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("dglabv3.event")
 
 
-def event(name: str = None):
+def event(name: Optional[str] = None):
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
