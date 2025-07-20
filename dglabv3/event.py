@@ -25,7 +25,7 @@ def event(name: Optional[str] = None):
             def register_to_instance(instance):
                 instance.register_event(event_name, wrapper)
 
-            wrapper._register = register_to_instance
+            wrapper._register = register_to_instance # type: ignore
 
         return wrapper
 

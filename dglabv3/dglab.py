@@ -9,8 +9,7 @@ import qrcode
 import websockets
 from websockets.asyncio.client import connect as ws_connect
 
-from dglabv3.dtype import (Button, Channel, ChannelStrength, MessageType,
-                           Strength, StrengthMode, StrengthType)
+from dglabv3.dtype import Button, Channel, ChannelStrength, MessageType, Strength, StrengthMode, StrengthType
 from dglabv3.event import EventEmitter
 from dglabv3.music_to_wave import convert_audio_to_v3_protocol
 from dglabv3.wsmessage import WSMessage, WStype
@@ -41,11 +40,21 @@ class dglabv3(EventEmitter):
         self.bot = None
 
     async def _dispatch_button(self, button: Button) -> None:
+        """
+        按鈕事件
+
+        :param button: 按鈕物件
+        """
         self.emit("button", button)
         if self.bot:
             await self.bot.dispatch("dglab_button", button)
 
     async def _dispatch_strength(self, strength: Strength) -> None:
+        """
+        強度事件
+
+        :param strength: 強度物件
+        """
         logger.debug(f"Dispatch strength: {strength}")
         self.emit("strength", strength)
         if self.bot:
@@ -53,25 +62,34 @@ class dglabv3(EventEmitter):
 
     def set_bot(self, bot):
         """
-        設置discord bot
+        設置Discord Bot
+
+        :param bot: Discord Bot
         """
         self.bot = bot
 
     def is_connected(self) -> bool:
         """
-        是否連接到WebSocket
+        檢查是否已連接到WebSocket伺服器
+
+        :return: 連接狀態
         """
         return self.client is not None
 
     def is_linked_to_app(self) -> bool:
         """
-        是否連接到app
+        檢查是否已連接到App
+
+        :return: App連接狀態
         """
         return self.client_id is not None
 
     async def connect_and_wait(self, timeout: int = 30) -> None:
         """
-        連接並等待bind完成
+        連接WebSocket並等待綁定完成
+
+        :param timeout: 超時時間(秒)
+        :raises TimeoutError: 當綁定超時
         """
         await self.connect()
         try:
@@ -86,7 +104,10 @@ class dglabv3(EventEmitter):
 
     async def wait_for_app_connect(self, timeout: int = 30) -> None:
         """
-        等待app連結
+        等待App連接
+
+        :param timeout: 超時時間(秒)
+        :raises TimeoutError: 當App連接超時
         """
         try:
             await asyncio.wait_for(
@@ -100,7 +121,9 @@ class dglabv3(EventEmitter):
 
     async def connect(self) -> None:
         """
-        連接WebSocket
+        連接到WebSocket伺服器
+
+        :raises ConnectionError: 當連接失敗時
         """
         try:
             self.client = await ws_connect(self.clienturl)
@@ -112,6 +135,9 @@ class dglabv3(EventEmitter):
             raise ConnectionError("WebSocket connection error")
 
     async def _listen(self):
+        """
+        監聽WebSocket訊息
+        """
         try:
             if self.client is None:
                 logger.error("WebSocket client is None")
@@ -127,6 +153,8 @@ class dglabv3(EventEmitter):
     def generate_qrcode(self) -> Optional[io.BytesIO]:
         """
         生成QR code圖片
+
+        :return: QR code圖片的BytesIO物件，如果client_id為空則返回None
         """
         if self.client_id is None:
             logger.error("Client ID is empty, please connect to the server first")
@@ -143,6 +171,8 @@ class dglabv3(EventEmitter):
     def generate_qrcode_text(self) -> Optional[str]:
         """
         生成QR code文字
+
+        :return: ASCII格式的QR code文字，如果client_id為空則返回None
         """
         if self.client_id is None:
             logger.error("Client ID is empty, please connect to the server first")
@@ -154,6 +184,11 @@ class dglabv3(EventEmitter):
         return f.getvalue()
 
     async def _update_connects(self, message: WSMessage):
+        """
+        更新連接狀態並同步強度設定
+
+        :param message: WebSocket訊息物件
+        """
         if message.targetID:
             self.target_id = message.targetID
             await self.set_strength(Channel.A, StrengthType.SPECIFIC, self.strength.A)
@@ -161,6 +196,9 @@ class dglabv3(EventEmitter):
             self._app_connect_event.set()
 
     async def _heartbeat(self):
+        """
+        心跳檢測任務，維持連接並檢測App連接狀態
+        """
         try:
             while not self._closing:
                 await self._send_message(
@@ -185,12 +223,19 @@ class dglabv3(EventEmitter):
             logger.error(f"Heartbeat error: {e}")
 
     def _start_heartbeat(self):
-        """啟動心跳檢測"""
+        """
+        啟動心跳檢測任務
+        """
         if self._heartbeat_task:
             self._heartbeat_task.cancel()
         self._heartbeat_task = asyncio.create_task(self._heartbeat())
 
     async def _handle_message(self, data: websockets.Data):
+        """
+        處理接收到的WebSocket訊息
+
+        :param data: WebSocket訊息資料
+        """
         try:
             message = json.loads(data)
             WSmsg = WSMessage(message)
@@ -219,6 +264,12 @@ class dglabv3(EventEmitter):
             logger.debug(f"Received raw message: {data}")
 
     async def _send_message(self, message: dict, update: bool = True) -> None:
+        """
+        發送WebSocket訊息
+
+        :param message: 要發送的訊息字典
+        :param update: 是否自動添加clientId和targetId
+        """
         try:
             if self.client:
                 if update:
@@ -234,7 +285,7 @@ class dglabv3(EventEmitter):
 
     async def close(self):
         """
-        斷開連結
+        關閉WebSocket連接並清理資源
         """
         self._closing = True
         try:
@@ -256,11 +307,24 @@ class dglabv3(EventEmitter):
 
     @staticmethod
     def _wave2hex(data):
+        """
+        將波形資料轉換為16進制字串
+
+        :param data: 波形資料
+        :return: 16進制字串列表
+        """
         return ["".join(format(num, "02X") for num in sum(item, [])) for item in data]
 
     async def music_2_wave(self, mp3_file_path: str, channel: Channel = Channel.BOTH):
         """
-        將音樂轉換為波形
+        將音樂檔案轉換為波形並發送
+
+        :param mp3_file_path: 音樂檔案路徑
+        :param channel: 目標通道，預設為雙通道
+
+        Example:
+
+        >>> await client.music_2_wave("music.mp3", Channel.A)
         """
         data = convert_audio_to_v3_protocol(mp3_file_path)
         await self.send_wave_message(data, channel=channel)
@@ -268,9 +332,15 @@ class dglabv3(EventEmitter):
     async def send_wave_message(self, wave: list[list[list[int]]], time: int = 10, channel: Channel = Channel.BOTH):
         """
         發送波形\n
-        wave: Pulse().breath\n
-        time: 30\n
-        channel: Channel.A
+
+        :param wave: 波形數據
+        :param time: 波形持續時間(秒)
+        :param channel: Channel.A or Channel.B or Channel.BOTH
+
+        Example:
+
+        >>> await client.send_wave_message(PULSES["呼吸"], 30, Channel.A)
+
         """
         channel_str = ""
         if channel == Channel.A:
@@ -304,6 +374,15 @@ class dglabv3(EventEmitter):
             await self._send_message(message)
 
     async def clear_wave(self, channel: Channel):
+        """
+        清除指定通道的波形
+
+        :param channel: 要清除的通道
+
+        Example:
+
+        >>> await client.clear_wave(Channel.A)
+        """
         if channel == Channel.A:
             await self._send_message(
                 {
@@ -335,6 +414,15 @@ class dglabv3(EventEmitter):
             logger.error(f"Invalid channel: {channel}")
 
     async def clear_all_wave(self):
+        """
+        清除所有通道的波形
+
+        :return: 操作成功返回True
+
+        Example:
+
+        >>> await client.clear_all_wave()
+        """
         # type : msg 固定不变
         # message: clear-1 -> 清除A通道波形队列; clear-2 -> 清除B通道波形队列
         await self._send_message(
@@ -354,13 +442,27 @@ class dglabv3(EventEmitter):
 
     async def set_strength_value(self, channel: Channel, strength: int) -> None:
         """
-        设置通道强度
+        設定通道強度值
+
+        :param channel: 目標通道
+        :param strength: 強度值[0-200]
+
+        Example:
+
+        >>> await client.set_strength_value(Channel.A, 50)
         """
         await self.set_strength(channel, StrengthType.SPECIFIC, strength)
 
     async def add_strength_value(self, channel: Channel, strength: int) -> None:
         """
         增加通道強度
+
+        :param channel: 目標通道
+        :param strength: 要增加的強度值
+
+        Example:
+
+        >>> await client.add_strength_value(Channel.A, 10)
         """
         if channel == Channel.BOTH:
             await self.add_strength_value(Channel.A, strength)
@@ -372,6 +474,13 @@ class dglabv3(EventEmitter):
     async def decrease_strength_value(self, channel: Channel, strength: int) -> None:
         """
         減少通道強度
+
+        :param channel: 目標通道
+        :param strength: 要減少的強度值
+
+        Example:
+
+        >>> await client.decrease_strength_value(Channel.A, 5)
         """
         if channel == Channel.BOTH:
             await self.decrease_strength_value(Channel.A, strength)
@@ -382,15 +491,27 @@ class dglabv3(EventEmitter):
 
     async def reset_strength_value(self, channel: Channel) -> None:
         """
-        通道強度重置為0
+        重置通道強度為0
+
+        :param channel: 目標通道
+
+        Example:
+
+        >>> await client.reset_strength_value(Channel.A)
         """
         await self.set_strength(channel, StrengthType.ZERO, 0)
 
     async def set_strength(self, channel: Channel, type_id: StrengthType, strength: int) -> None:
         """
-        channel: 通道
-        type_id: StrengthType
-        strength: 強度值[0-200]
+        設定通道強度
+
+        :param channel: 目標通道
+        :param type_id: 強度類型
+        :param strength: 強度值[0-200]
+
+        Example:
+
+        >>> await client.set_strength(Channel.A, StrengthType.SPECIFIC, 80)
         """
         # type : 1 -> 通道强度减少; 2 -> 通道强度增加; 3 -> 通道强度归零 ;4 -> 通道强度指定为某个值
         # strength: 强度值变化量/指定强度值(当type为1或2时，该值会被强制设置为1)
@@ -472,6 +593,13 @@ class dglabv3(EventEmitter):
     def get_strength_value(self, channel: Channel) -> int:
         """
         獲取通道強度
+
+        :param channel: 目標通道
+        :return: 強度值
+
+        Example:
+
+        >>> strength = client.get_strength_value(Channel.A)
         """
         match channel:
             case Channel.A:
@@ -484,6 +612,13 @@ class dglabv3(EventEmitter):
     def get_max_strength_value(self, channel: Channel) -> int:
         """
         獲取通道最大強度
+
+        :param channel: 目標通道
+        :return: 最大強度值
+
+        Example:
+
+        >>> max_strength = client.get_max_strength_value(Channel.A)
         """
         match channel:
             case Channel.A:
