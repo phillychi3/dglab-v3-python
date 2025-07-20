@@ -15,7 +15,7 @@ from dglabv3.event import EventEmitter
 from dglabv3.music_to_wave import convert_audio_to_v3_protocol
 from dglabv3.wsmessage import WSMessage, WStype
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("dglabv3")
 
 
@@ -136,7 +136,7 @@ class dglabv3(EventEmitter):
         qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
         saveimg = io.BytesIO()
-        img.save(saveimg, format="PNG")  # type: ignore
+        img.save(saveimg)
         saveimg.seek(0)
         return saveimg
 
@@ -280,7 +280,9 @@ class dglabv3(EventEmitter):
         elif channel == Channel.BOTH:
             channel_str = "BOTH"
 
-        def _create_wave_message(ch_str: str, wave, time: int) -> dict:
+        def _create_wave_message(ch_str: str, wave: list[list[list[int]]], time: int) -> dict:
+            if len(wave) <= 4:  # 避免波型過小
+                wave = wave * 2
             return {
                 "type": MessageType.CLIENT_MSG,
                 "channel": ch_str,
