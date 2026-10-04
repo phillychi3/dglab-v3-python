@@ -155,3 +155,17 @@ PULSES = {
         [[10, 10, 10, 10], [73, 73, 73, 73]],
     ],
 }
+
+
+def to_hex_frames(wave) -> list[str]:
+    """
+    將波形轉換為16進制幀列表
+
+    :param wave: PULSES 格式 [[[頻率x4], [強度x4]], ...] 或已是16進制字串列表
+    :return: 16進制字串列表，例如 ["0A0A0A0A64646464"]
+    """
+    if not wave:
+        raise ValueError("Wave data is empty")
+    if all(isinstance(frame, str) for frame in wave):
+        return list(wave)
+    return ["".join(format(num, "02X") for num in sum(frame, [])) for frame in wave]

@@ -2,7 +2,17 @@ from dataclasses import dataclass, field
 from enum import Enum, IntEnum, StrEnum
 from typing import Final
 
-__all__ = ["ChannelStrength", "StrengthType", "StrengthMode", "MessageType", "Channel"]
+__all__ = [
+    "ChannelStrength",
+    "StrengthType",
+    "StrengthMode",
+    "MessageType",
+    "Channel",
+    "Strength",
+    "DeviceType",
+    "Priority",
+    "Button",
+]
 
 
 class Channel(IntEnum):
@@ -17,10 +27,33 @@ MIN_STRENGTH: Final[int] = 0
 
 @dataclass
 class Strength:
+    """
+    強度資訊
+
+    A / B 為當前強度，MAXA / MAXB 為強度上限，client_id / slot_id 為來源 App 與設備
+    """
+
     A: int
     B: int
     MAXA: int
     MAXB: int
+    client_id: str = ""
+    slot_id: str = ""
+
+
+class DeviceType(StrEnum):
+    COYOTE_020 = "COYOTE_020"
+    COYOTE_030 = "COYOTE_030"
+    OVC_1 = "OVC_1"
+    BMTR_1 = "BMTR_1"
+
+
+class Priority(IntEnum):
+    """V4 任務優先級"""
+
+    LOW = 0
+    NORMAL = 1
+    HIGH = 2
 
 
 @dataclass

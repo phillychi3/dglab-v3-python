@@ -5,9 +5,9 @@ import sys
 from PIL import Image
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from dglabv3 import PULSES, Channel, StrengthType, dglabv3
+from dglabv3 import PULSES, Channel, StrengthType, dglabv3, V3Protocol
 
-client = dglabv3()
+client = dglabv3(V3Protocol())
 
 
 async def run():
@@ -30,6 +30,7 @@ async def run():
         exit(1)
     finally:
         await client.close()
+
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
